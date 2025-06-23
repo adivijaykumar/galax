@@ -4,23 +4,21 @@ from functools import partial
 from typing import TypeAlias, TypeVar, cast
 
 import jax
-from jax import lax
-from jax._src.numpy.util import promote_args_inexact
-from jax.scipy.special import sph_harm
 from jaxtyping import ArrayLike, Shaped
 
 import quaxed.numpy as jnp
 
-import galax.typing as gt
+import galax._custom_types as gt
+from galax.potential._src.builtin.multipole import compute_Ylm
 
-BatchableIntLike: TypeAlias = Shaped[gt.IntLike, "*#batch"]
+BatchableIntSz0: TypeAlias = Shaped[gt.IntSz0, "*#batch"]
 
 T = TypeVar("T", bound=ArrayLike)
 
 
 @partial(jax.jit)
 @partial(jax.numpy.vectorize, signature="(3)->(3)")
-def cartesian_to_spherical(xyz: gt.Vec3, /) -> gt.Vec3:
+def cartesian_to_spherical(xyz: gt.FloatSz3, /) -> gt.FloatSz3:
     """Convert Cartesian coordinates to spherical coordinates.
 
     Parameters
@@ -43,14 +41,6 @@ def cartesian_to_spherical(xyz: gt.Vec3, /) -> gt.Vec3:
     phi = jnp.arctan2(xyz[1], xyz[0])  # azimuthal angle
     return jnp.array([r, theta, phi])
 
-
-# TODO: replace with upstream, when available
-def factorial(n: T) -> T:
-    """Factorial helper function."""
-    (n,) = promote_args_inexact("factorial", n)
-    return cast("T", xp.where(n < 0, 0, lax.exp(lax.lgamma(n + 1))))
-
-
 def psi_of_r(r: T) -> T:
     r""":math:`\psi(r) = (r-1)/(r+1)`.
 
@@ -62,20 +52,10 @@ def psi_of_r(r: T) -> T:
 # =============================================================================
 
 
-@partial(jax.numpy.vectorize, signature="(n),(),()->(n)", excluded=(3,))
-@partial(jax.jit, static_argnames=("m_max",))  # TODO: should l,m be static?
-def _real_Ylm(theta: gt.VecN, l: gt.IntLike, m: gt.IntLike, m_max: int) -> gt.VecN:
-    # TODO: sph_harm only supports scalars, even though it returns an array!
-    theta = xp.atleast_1d(theta)
-    return sph_harm(
-        m, xp.atleast_1d(l), theta=xp.zeros_like(theta), phi=theta, n_max=m_max
-    ).real
-
-
 @partial(jax.jit, static_argnames=("m_max",))
 def real_Ylm(
-    theta: gt.FloatAnyShape, l: BatchableIntLike, m: BatchableIntLike, m_max: int = 100
-) -> gt.FloatAnyShape:
+    theta: gt.SzAny, l: BatchableIntSz0, m: BatchableIntSz0, m_max: int = 100
+) -> gt.SzAny:
     r"""Get the spherical harmonic :math:`Y_{lm}(\theta)` of the polar angle.
 
     This is different than the scipy (and thus JAX) convention, which is
@@ -99,4 +79,5 @@ def real_Ylm(
         ``(n),(),()->(n)``.
     """
     # TODO: raise an error if m > m_max
-    return _real_Ylm(theta, l, m, m_max)
+    _real_Ylm, _ = compute_Ylm(l, m, theta=theta, phi=jnp.zeros_like(theta), l_max=m_max)
+    return _real_Ylm

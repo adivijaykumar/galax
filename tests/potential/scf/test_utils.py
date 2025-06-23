@@ -4,7 +4,6 @@ import hypothesis
 import hypothesis.extra.numpy as hnp
 import jax
 import numpy as np
-import numpy.typing as npt
 import scipy.special as sp
 from hypothesis import assume, given, strategies as st
 
@@ -12,7 +11,6 @@ import quaxed.numpy as jnp
 
 from galax.potential._src.scf.utils import (
     cartesian_to_spherical,
-    factorial,
     psi_of_r,
     real_Ylm,
 )
@@ -74,20 +72,6 @@ def test_cartesian_to_spherical_jac():
     np.testing.assert_array_equal(
         output[1, :, 1, :], [[0.0, 1.0, 0.0], [0.0, 0.0, -1.0], [-1.0, 0.0, 0.0]]
     )
-
-
-# =============================================================================
-
-
-@given(
-    n=st.integers(0, 100)
-    | hnp.arrays(dtype=int, shape=hnp.array_shapes(), elements=st.integers(0, 100))
-)
-def test_factorial(n: int | npt.NDArray[np.int_]):
-    """Test the ``factorial`` function."""
-    got = factorial(jnp.asarray(n))
-    expected = sp.factorial(n)
-    np.testing.assert_allclose(got, expected)
 
 
 # =============================================================================

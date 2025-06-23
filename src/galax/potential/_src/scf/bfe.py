@@ -11,13 +11,13 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-import galax.typing as gt
+import galax._custom_types as gt
 from .bfe_helper import phi_nl_vec, rho_nl as calculate_rho_nl
 from .coeffs import compute_coeffs_discrete
-from .gegenbauer import GegenbauerCalculator
 from .utils import cartesian_to_spherical, real_Ylm
-from galax.potential._src.core import AbstractPotential
-from galax.potential._src.param import AbstractParameter, ParameterField
+from galax.potential import AbstractPotential
+from galax.potential._src.params.base import AbstractParameter
+from galax.potential._src.params.field import ParameterField
 
 ##############################################################################
 
@@ -60,7 +60,6 @@ class SCFPotential(AbstractPotential):
 
     nmax: int = eqx.field(init=False, static=True, repr=False)
     lmax: int = eqx.field(init=False, static=True, repr=False)
-    _ultra_sph: GegenbauerCalculator = eqx.field(init=False, static=True, repr=False)
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -70,15 +69,12 @@ class SCFPotential(AbstractPotential):
         object.__setattr__(self, "nmax", shape[0] - 1)
         object.__setattr__(self, "lmax", shape[1] - 1)
 
-        # gegenbauer calculator
-        object.__setattr__(self, "_ultra_sph", GegenbauerCalculator(self.nmax))
-
     # ==========================================================================
 
     @partial(jax.jit, inline=True)
     def _potential(
-        self, xyz: gt.BatchQVec3, t: gt.BatchableRealQScalar, /
-    ) -> gt.VecN | gt.FloatScalar:
+        self, xyz: gt.BtQuSz3, t: gt.BtQuSz0, /
+    ) -> gt.SzN | gt.FloatSz0:
         r_s = self.r_s(t)
         r, theta, phi = cartesian_to_spherical(xyz).T
 
@@ -88,7 +84,7 @@ class SCFPotential(AbstractPotential):
 
         ns = jnp.arange(self.nmax + 1)[:, None, None]  # (n, [l], [m])
         ls = jnp.arange(self.lmax + 1)[None, :, None]  # ([n], l, [m])
-        phi_nl = phi_nl_vec(s, ns, ls, self._ultra_sph)  # (n, l, [m], N)
+        phi_nl = phi_nl_vec(s, ns, ls)  # (n, l, [m], N)
 
         li, mi = jnp.tril_indices(self.lmax + 1)  # (l*(l+1)//2,)
         shape = (1, self.lmax + 1, self.lmax + 1, 1)  # ([n], l, m, [N])
@@ -110,7 +106,7 @@ class SCFPotential(AbstractPotential):
 
     @partial(jax.jit, inline=True)
     @eqx.filter_vmap(in_axes=(None, 1, None))  # type: ignore[misc]  # on `q` axis 1
-    def _density(self, q: gt.LengthVec3, /, t: gt.RealQScalar) -> Float[Array, "N"]:  # type: ignore[name-defined]
+    def _density(self, q: gt.QuSz3, /, t: gt.QuSz0) -> Float[Array, "N"]:  # type: ignore[name-defined]
         """Compute the density at the given position(s)."""
         r, theta, phi = cartesian_to_spherical(q)
         r_s = self.r_s(t)
@@ -121,7 +117,7 @@ class SCFPotential(AbstractPotential):
         ns = jnp.arange(self.nmax + 1)[:, None, None]  # (n, [l], [m])
         ls = jnp.arange(self.lmax + 1)[None, :, None]  # ([n], l, [m])
 
-        phi_nl = calculate_rho_nl(s, ns[None], ls[None], gegenbauer=self._ultra_sph)
+        phi_nl = calculate_rho_nl(s, ns[None], ls[None])
 
         li, mi = jnp.tril_indices(self.lmax + 1)  # (l*(l+1)//2,)
         shape = (1, 1, self.lmax + 1, self.lmax + 1)
@@ -162,13 +158,14 @@ class STnlmSnapshotParameter(AbstractParameter):  # type: ignore[misc]
     """Spherical harmonic term."""
 
     def __call__(
-        self, t: gt.TimeScalar, *, r_s: gt.LengthScalar, **_: Any
+        self, t: gt.QuSz0, *, r_s: gt.QuSz0, **_: Any
     ) -> tuple[
         Float[Array, "{self.nmax}+1 {self.lmax}+1 {self.lmax}+1"],
         Float[Array, "{self.nmax}+1 {self.lmax}+1 {self.lmax}+1"],
     ]:
         """Return the coefficients at the given time(s).
 
+        TODO: are the types correct here? Should they be quantity specific?
         Parameters
         ----------
         t : float | Array[float, ()]
