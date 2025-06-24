@@ -12,7 +12,8 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 import galax._custom_types as gt
-from .bfe_helper import phi_nl_vec, rho_nl as calculate_rho_nl
+from .bfe_helper import rho_nl as calculate_rho_nl
+from .bfe_helper import phi_nl_jit_vec
 from .coeffs import compute_coeffs_discrete
 from .utils import cartesian_to_spherical, real_Ylm
 from galax.potential import AbstractPotential
@@ -82,9 +83,9 @@ class SCFPotential(AbstractPotential):
         theta = jnp.atleast_1d(theta)[None, None, None]  # ([n],[l],[m],[N])
         phi = jnp.atleast_1d(phi)[None, None, None]  # ([n],[l],[m],[N])
 
-        ns = jnp.arange(self.nmax + 1)[:, None, None]  # (n, [l], [m])
-        ls = jnp.arange(self.lmax + 1)[None, :, None]  # ([n], l, [m])
-        phi_nl = phi_nl_vec(s, ns, ls)  # (n, l, [m], N)
+        # ns = jnp.arange(self.nmax + 1)[:, None, None]  # (n, [l], [m])
+        ls = jnp.arange(self.lmax + 1) # ([n], l, [m])
+        phi_nl = phi_nl_jit_vec(nmax, ls, s)  # (n, l, [m], N)
 
         li, mi = jnp.tril_indices(self.lmax + 1)  # (l*(l+1)//2,)
         shape = (1, self.lmax + 1, self.lmax + 1, 1)  # ([n], l, m, [N])

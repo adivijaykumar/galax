@@ -10,7 +10,7 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 import galax._custom_types as gt
-from .bfe_helper import phi_nl_vec
+# from .bfe_helper import phi_nl_vec
 from .coeffs_helper import expansion_coeffs_Anl_discrete
 from .utils import cartesian_to_spherical, real_Ylm
 
@@ -69,7 +69,7 @@ def compute_coeffs_discrete(
     ls = jnp.arange(lmax + 1)[None, :]  # (n, l)
 
     Anl_til = expansion_coeffs_Anl_discrete(ns, ls)  # (n, l)
-    phinl = phi_nl_vec(s, ns, ls)  # (n, l, N)
+    phinl = phi_nl_vec(s, nmax, ls)  # (n, l, N)
 
     li, mi = jnp.tril_indices(lmax + 1)  # (l*(l+1)//2,)
     lm = jnp.zeros((lmax + 1, lmax + 1), dtype=int).at[li, mi].set(li)  # (l, m)
